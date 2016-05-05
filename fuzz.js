@@ -1,126 +1,174 @@
-var _ = require ("lodash");
-var traverse = require ("traverse");
+var _ = require("lodash");
+var traverse = require("traverse");
 
 module.exports = Fuzz;
 
-const FT = { // Fuzz types
-    UNKNOWN: -1,
-    UNDEFINED: 1,
-    NULL: 2,
-    STRING: 3,
-    OBJECT: 4,
-    ARRAY: 5,
-    BOOLEAN: 6,
-    REGEXP: 7,
-    DATE: 8,
-    NUMBER: 9,
-    FUNCTION: 10
-};
+function Fuzz(thing, opts) {
+    var defaults = {
+        mutateChance: 80,
+        generateSameTypeChance: 50,
+        selectItems: function() {
+            if (this.baseIndex.length === 1) return this.baseIndex;
+            return _.sampleSize(this.baseIndex, _.random(this.baseIndex.length - 1));
+        }
+    };
+    _.defaultsDeep(opts, defaults);
+    this.baseThing = thing;
+    this.baseIndex = traverse(thing).paths();
 
-const type = {
-	object: {
-		check: function(){},
-		generate: [function(){}, function(){}],
-		mutate: [function(){}, function(){}],
-		subtype: [{}, {}]
-	}
-};
+    // this.name = "foo";
+    this.types = {};
+    this.typeIndex = {};
 
-const FST = { // Fuzz subtypes
-};
+    // load all the built-in types
+    require("./builtin-types.js").bind(this)();
+    // console.log(require("util").inspect(this.types, { depth: null }));
+    // console.log("init done");
 
-function Fuzz(thing) {
-    this.type = FT;
 }
 
 Fuzz.prototype.fn = function(fn, argArr, cnt) {
 
 };
 
-Fuzz.prototype.fuzz = function(thing) {
-    // deep copy
-    // index
-    this.baseThing = thing;
-    this.baseIndex = this.createIndex (thing);
-    // _.cloneDeep(this.baseThing);
-    // _.cloneDeep(this.baseIndex);
-    // for (type in this.type)
+Fuzz.prototype.fuzz = function() {
+    var thing = _.cloneDeep(this.baseThing);
+    var itemList = this.selectItems();
+    var itemPath, itemType, item;
+
+    while (itemList.length) {
+        itemPath = itemList.pop();
+        item = _.get(itemPath);
+        itemType = this.getType(item);
+        item = this.mutateOrGenerate(item, itemType);
+    }
+};
+
+Fuzz.prototype.mutateOrGenerate = function(thing, type) {
+    if (_.random(100) < this.mutateChance) {
+        return this.mutate(thing, type);
+    } else if (_.random(100) < this.generateSameTypeChance) {
+        return this.generate(type);
+    } else {
+        return this.generate();
+    }
 };
 
 Fuzz.prototype.mutate = function(thing, type) {
+    // resolve type to object
+    if (type === undefined) {
+        type = this.typeIndex[this.getType(thing)];
+    } else if (typeof type === "string") {
+        type = this.typeIndex[type];
+    } else {
+        throw new TypeError("expected 'type' to be string");
+    }
+    if (type === undefined) {
+        throw new TypeError("couldn't find 'type' for mutate: " + type);
+    }
 
+    var fn =  _.sample (type.mutate);
+    if (typeof fn === "function") {
+    	return fn();
+    }
 };
 
 Fuzz.prototype.generate = function(type) {
-
-};
-
-Fuzz.prototype.register = function(name, obj, parent) {
-	// Object.defineProperty (obj, name, {configurable: true, enumerable: false, writable: true, value: XXX});
-};
-
-Fuzz.prototype.getType = function(thing) {
-	if (thing === null) return this.type.NULL;
-
-    switch (typeof thing) {
-        case "undefined":
-            return this.type.UNDEFINED;
-        case "string":
-            return this.type.STRING;
-        case "boolean":
-            return this.type.BOOLEAN;
-        case "regexp":
-            return this.type.REGEXP;
-        case "null":
-        	return this.type.NULL;
-        case "number":
-        	return this.type.NUMBER;
-       	case "function":
-       		return this.type.FUNCTION;
-        case "object":
-            break;
-        default:
-        	return this.type.UNKNOWN;
+    // resolve type to object
+    if (type === undefined) {
+        type = _.sample(this.typeIndex);
+    } else if (typeof type === "string") {
+        type = this.typeIndex[type];
+        if (type === undefined) {
+            throw new TypeError("couldn't find 'type' for generate: " + type);
+        }
+    } else {
+        throw new TypeError("expected 'type' to be string");
     }
 
-    // should be object at this point
-    if (Array.isArray (thing)) return this.type.ARRAY;
-    if (thing instanceof RegExp) return this.type.REGEXP;
-    if (thing instanceof Date) return this.type.DATE;
-
-    // must just be a generic object
-    return this.type.OBJECT;
+    var fn =  _.sample (type.generate);
+    if (typeof fn === "function") {
+    	return fn();
+    }
 };
 
-Fuzz.prototype.getSubType = function(thing, type) {
-	if (type === undefined) {
-		type = this.getType (thing);
-	}
+Fuzz.prototype.registerType = function(name, obj, parent) {
+    // check args
+    if (typeof name !== "string") {
+        throw new TypeError("expected 'name' to be string");
+    }
+    if (name === "subtype") {
+        throw new TypeError("'name' can't be subtype");
+    }
+    if (this.typeIndex[name] !== undefined) {
+        throw new TypeError("'name' must be unique across all types: " + name + " already exists.");
+    }
+    if (typeof obj !== "object") {
+        throw new TypeError("expected new type object");
+    }
+    if (typeof obj.check !== "function") {
+        throw new TypeError("new type's 'check' must be a function");
+    }
+    var defaults = {
+        mutate: [],
+        generate: [],
+        subtype: {}
+    };
+    _.defaultsDeep(obj, defaults);
+
+    var newType = {};
+    // Object.defineProperty (newType, "name", {configurable: true, enumerable: false, writable: true, value: name});
+    Object.defineProperty(newType, "check", { configurable: true, enumerable: false, writable: true, value: obj.check });
+    Object.defineProperty(newType, "mutate", { configurable: true, enumerable: false, writable: true, value: obj.mutate });
+    Object.defineProperty(newType, "generate", { configurable: true, enumerable: false, writable: true, value: obj.generate });
+    newType.subtype = _.cloneDeep(obj.subtype);
+
+    this.typeIndex[name] = newType;
+    if (parent === undefined) {
+        this.types[name] = newType;
+    } else {
+        var parentType = this.typeIndex[parent];
+        parentType.subtype[name] = newType;
+    }
 };
 
-Fuzz.prototype.createIndex = function(thing, basepath) {
-	var ret = [];
-	var type;
-	// console.log ("Basepath:", basepath);
+Fuzz.prototype.registerMutator = function(name, fn) {
 
-	if (basepath === undefined) basepath = "";
-	function mkPath (thing, basepath, key) {
-		if (Array.isArray (thing))
-			return basepath + "[" + key + "]";
-		else if (basepath !== "")
-			return basepath + "." + key;
-		else
-			return key;
-	}
+};
 
-	_.forOwn (thing, function (value, key) {
-		// console.log ("key:", mkPath (thing, basepath, key));
-		ret.push (mkPath (thing, basepath, key));
-		type = this.getType (value);
-		if (type === this.type.ARRAY || type === this.type.OBJECT) {
-			ret = ret.concat(this.createIndex (value, mkPath (thing, basepath, key)));
-		}
-	}.bind(this));
-	// console.log ("Returning:", ret);
-	return ret;
+Fuzz.prototype.registerGenerator = function(name, fn) {
+
+};
+
+// returns a string that is the most specific "type" of "thing" that can be determined
+Fuzz.prototype.resolveType = function(thing) {
+    var self = this;
+
+    // recursively see if some 'type' in 'typeList' returns true when checking 'obj'
+    // if it does, that's our type... check the subtypes to make sure there's not something
+    // more specific
+    function findType(typeList, obj) {
+        var type = _.map(typeList, function(value, type) {
+            if (value === undefined || type === undefined) return;
+            if (value.check.call(self, obj)) {
+                // console.log("found type: " + type + ". checking subtypes")
+                return findType(value.subtype, obj) || type;
+            }
+        });
+
+        // type = _.flattenDeep (_.remove(type, _.isUndefined));
+        _.remove(type, _.isUndefined);
+        if (type.length > 1) {
+            throw new Error("found too many matching types types");
+        }
+        if (type.length === 0) type = undefined;
+        if (Array.isArray(type)) {
+            type = _.flattenDeep(type)[0];
+        }
+        // console.log ("returning", type);
+
+        return type;
+    }
+
+    return findType(this.types, thing);;
 };

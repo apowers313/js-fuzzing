@@ -13,9 +13,9 @@ Using an existing object or array of function arguments as a schema, and mutates
 var fuzz = new require("js-fuzz");
 var options = {
     count: 1000,
-    mutate: function() {},
-    generate: function() {},
-    select: function() {},
+    mutateChance: function() {},
+    generateChance: function() {},
+    selectChance: function() {},
     allowedErrors: [
         new Error ("argument not allowed")
     ],
