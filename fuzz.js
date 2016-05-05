@@ -4,17 +4,29 @@ var traverse = require("traverse");
 module.exports = Fuzz;
 
 function Fuzz(thing, opts) {
+	opts = opts || {};
     var defaults = {
         mutateChance: 80,
         generateSameTypeChance: 50,
         selectItems: function() {
-            if (this.baseIndex.length === 1) return this.baseIndex;
-            return _.sampleSize(this.baseIndex, _.random(this.baseIndex.length - 1));
+            if (this.pathList.length === 1) return this.pathList;
+            return _.sampleSize(this.pathList, _.random(this.pathList.length - 1));
         }
     };
     _.defaultsDeep(opts, defaults);
     this.baseThing = thing;
-    this.baseIndex = traverse(thing).paths();
+    this.pathList = _.invokeMap(traverse(thing).paths(), Array.prototype.join, ".");
+    if (this.pathList.length === 1) {
+    	this.singleBaseThing = true;
+    } else {
+    	this.singleBaseThing = false;
+    }
+    // this.pathList = traverse(thing).paths();
+    // console.log ("Thing:", thing);
+    // console.log ("Paths:", this.pathList);
+    this.selectItems = opts.selectItems;
+    this.generateSameTypeChance = opts.generateSameTypeChance;
+    this.mutateChance = opts.mutateChance;
 
     // this.name = "foo";
     this.types = {};
@@ -32,22 +44,38 @@ Fuzz.prototype.fn = function(fn, argArr, cnt) {
 };
 
 Fuzz.prototype.fuzz = function() {
+	if (this.singleBaseThing) return this.fuzzSingle();
+
     var thing = _.cloneDeep(this.baseThing);
     var itemList = this.selectItems();
     var itemPath, itemType, item;
 
     while (itemList.length) {
         itemPath = itemList.pop();
+        console.log ("path:", itemPath);
         item = _.get(itemPath);
-        itemType = this.getType(item);
+        itemType = this.resolveType(item);
         item = this.mutateOrGenerate(item, itemType);
     }
 };
 
+Fuzz.prototype.fuzzSingle = function() {
+	console.log ("fuzzSingle");
+	var thing = _.cloneDeep(this.baseThing);
+	var type = this.resolveType(thing);
+	console.log ("Thing:", thing);
+	console.log ("Type:", type);
+
+	return this.mutateOrGenerate(thing, type);
+};
+
 Fuzz.prototype.mutateOrGenerate = function(thing, type) {
-    if (_.random(100) < this.mutateChance) {
-        return this.mutate(thing, type);
-    } else if (_.random(100) < this.generateSameTypeChance) {
+	console.log ("mutateOrGenerate");
+	console.log ("thing:", thing);
+    // if (_.random(100) < this.mutateChance) {
+    //     return this.mutate(thing, type);
+    // } else 
+    if (_.random(100) < this.generateSameTypeChance) {
         return this.generate(type);
     } else {
         return this.generate();
@@ -67,15 +95,18 @@ Fuzz.prototype.mutate = function(thing, type) {
         throw new TypeError("couldn't find 'type' for mutate: " + type);
     }
 
+    console.log (type.mutate);
     var fn =  _.sample (type.mutate);
     if (typeof fn === "function") {
-    	return fn();
+    	return fn(thing);
     }
 };
 
 Fuzz.prototype.generate = function(type) {
+	console.log ("generate");
     // resolve type to object
     if (type === undefined) {
+    	console.log ("generate: no type defined, picking a random type");
         type = _.sample(this.typeIndex);
     } else if (typeof type === "string") {
         type = this.typeIndex[type];
@@ -88,7 +119,9 @@ Fuzz.prototype.generate = function(type) {
 
     var fn =  _.sample (type.generate);
     if (typeof fn === "function") {
-    	return fn();
+    	var ret = fn();
+    	console.log ("Generate returning:", ret);
+    	return ret;
     }
 };
 
@@ -116,8 +149,12 @@ Fuzz.prototype.registerType = function(name, obj, parent) {
     };
     _.defaultsDeep(obj, defaults);
 
+    // console.log ("Registering:", name);
+    // console.log ("Mutate:", obj.mutate);
+    // console.log ("Generate:", obj.generate);
+
     var newType = {};
-    // Object.defineProperty (newType, "name", {configurable: true, enumerable: false, writable: true, value: name});
+    Object.defineProperty (newType, "name", {configurable: true, enumerable: false, writable: true, value: name}); // convenience type
     Object.defineProperty(newType, "check", { configurable: true, enumerable: false, writable: true, value: obj.check });
     Object.defineProperty(newType, "mutate", { configurable: true, enumerable: false, writable: true, value: obj.mutate });
     Object.defineProperty(newType, "generate", { configurable: true, enumerable: false, writable: true, value: obj.generate });
@@ -133,11 +170,25 @@ Fuzz.prototype.registerType = function(name, obj, parent) {
 };
 
 Fuzz.prototype.registerMutator = function(name, fn) {
+	if (typeof this.typeIndex[name] !== "object") {
+		throw new TypeError ("couldn't find type 'name':" + name);
+	}
+	if (typeof fn !== "function") {
+		throw new TypeError ("expected function");
+	}
 
+	this.typeIndex[name].mutate.push(fn);
 };
 
 Fuzz.prototype.registerGenerator = function(name, fn) {
+	if (typeof this.typeIndex[name] !== "object") {
+		throw new TypeError ("couldn't find type 'name':" + name);
+	}
+	if (typeof fn !== "function") {
+		throw new TypeError ("expected function");
+	}
 
+	this.typeIndex[name].generate.push(fn);
 };
 
 // returns a string that is the most specific "type" of "thing" that can be determined

@@ -4,9 +4,16 @@ var traverse = require("traverse");
 var FuzzGen = require("../fuzz.js");
 
 describe("basic tests", function() {
-    // it("fuzzes a string");
+    it.only("fuzzes a string", function() {
+    	var fg = new FuzzGen("this is a test");
+    	console.log (fg.fuzz());
+    });
+    it("fuzzes an object", function() {
+    	var fg = new FuzzGen({foo: "bar"});
+    	console.log (fg.fuzz());
+    });
     it("register types");
-    it.only("right type identification", function() {
+    it("right type identification", function() {
         var fg = new FuzzGen();
         assert.equal(fg.resolveType(undefined), "undefined");
         assert.equal(fg.resolveType("beer"), "string");

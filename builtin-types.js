@@ -6,7 +6,7 @@
 //         subtype: [{}, {}]
 //     }
 // };
-
+var mandg = require ("./mutators-and-generators.js");
 
 module.exports = function() {
     this.registerType("undefined", undefType);
@@ -46,7 +46,9 @@ var arrType = {
 var strType = {
 	check: function(thing) {
 		return typeof thing === "string";
-	}
+	},
+	mutate: mandg.string.mutate,
+	generate: mandg.string.generate
 };
 
 var regexpType = {
