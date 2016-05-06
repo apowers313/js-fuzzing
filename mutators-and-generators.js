@@ -18,7 +18,7 @@ function stringTruncate(str) {
 	if (typeof str !== "string") {
 		console.log ("stringTruncate got non-string:", str);
 	}
-	return str.substring(0, _.random(str.length - 1));
+	return str.substring(1, _.random(str.length - 2));
 }
 
 function stringLorem() {
@@ -52,5 +52,214 @@ function stringEmpty() {
 	console.log ("stringEmpty");
 	return "";
 }
+
+mandg.object = {
+	mutate: [
+		objAddKeys
+	],
+	generate: [
+		objEmpty
+	]
+};
+
+// TODO: objDelKeys -- delete random object keys
+
+function objAddKeys (thing) {
+	var i, num = _.random(100), key;
+
+	for (i = 0; i < num; i++) {
+		key = stringJunk()
+		thing[key] = this.generate();
+	}
+}
+
+function objEmpty (thing) {
+	return Object.create(null);
+}
+
+mandg.array = {
+	mutate: [
+		arrJunk
+	],
+	generate: [
+		arrGenJunk,
+		arrEmpty
+	]
+};
+
+// TODO: arrayClone -- duplicate and append existing array members
+// TODO: arrayCloneMutant -- duplicate and append mutations of existing array members
+
+function arrJunk(thing) {
+	var i, num = _.random(100);
+
+	for (i = 0; i < num; i++) {
+		thing.unshift (this.generate());
+	}
+}
+
+function arrGenJunk() {
+	var i, num = _.random(100);
+	var thing = [];
+
+	for (i = 0; i < num; i++) {
+		thing.unshift (this.generate());
+	}
+}
+
+function arrEmpty() {
+	return [];
+}
+
+mandg.undef = {
+	mutate: [],
+	generate: [
+		undefUndef
+	]
+};
+
+function undefUndef() {
+	return undefined;
+}
+
+mandg.regexp = {
+	mutate: [],
+	generate: [
+		regexpGobble
+	]
+};
+
+function regexpGobble() {
+	return /.*/;
+}
+
+mandg.date = {
+	mutate: [],
+	generate: [
+		dateMin,
+		dateMax
+	]
+};
+
+function dateMin() {
+	return new Date(0);
+}
+
+function dateMax() {
+	return new Date(Number.MAX_VALUE);
+}
+
+mandg.boolean = {
+	mutate: [],
+	generate: [
+		boolTrue,
+		boolFalse,
+		numZero,
+		numOne
+	]
+};
+
+function boolTrue() {
+	return true;
+}
+
+function boolFalse() {
+	return false;
+}
+
+mandg.number = {
+	mutate: [
+		numFlipSign,
+		numToFloat
+	],
+	generate: [
+		numNegInf,
+		numPosInf,
+		numNan,
+		numMax,
+		numMin,
+		numOne,
+		numZero,
+		numNegOne,
+		numFloat
+	]
+};
+
+function numFlipSign(thing) {
+	return thing * -1;
+}
+
+function numToFloat() {
+	return thing + 0.1;
+}
+
+function numNegInf() {
+	return Number.NEGATIVE_INFINITY;
+}
+
+function numPosInf() {
+	return Number.POSITIVE_INFINITY;
+}
+
+function numNan() {
+	return NaN;
+}
+
+function numMax() {
+	return Number.MAX_VALUE;
+}
+
+function numMin() {
+	return Number.MIN_VALUE;
+}
+
+function numOne() {
+	return 1;
+}
+
+function numZero() {
+	return 0;
+}
+
+function numNegOne() {
+	return -1;
+}
+
+function numFloat() {
+	return 3.14159;
+}
+
+mandg.fn = {
+	mutate: [],
+	generate: [
+		fnReturnJunk,
+		fnPromiseUnresolved,
+		fnThrow
+	]
+};
+
+// TODO: fnSmartCallback -- detects arguments of type function and calls them with junk and / or the (err, val) pattern
+
+function fnReturnJunk() {
+	var ret = this.generate();
+	return function() { return ret; };
+}
+
+function fnPromiseUnresolved() {
+	return function() { return new Promise(function (f, r) {}); };
+}
+
+function fnThrow() {
+	return function() { throw new Error ("fnThrow intentionally failed"); };
+}
+
+mandg.null = {
+	mutate: [],
+	generate: [
+		numZero,
+		boolFalse,
+		undefUndef
+	]
+};
 
 module.exports = mandg;

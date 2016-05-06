@@ -4,12 +4,12 @@ var traverse = require("traverse");
 var FuzzGen = require("../fuzz.js");
 
 describe("basic tests", function() {
-    it.only("fuzzes a string", function() {
+    it("fuzzes a string", function() {
     	var fg = new FuzzGen("this is a test");
     	console.log (fg.fuzz());
     });
-    it("fuzzes an object", function() {
-    	var fg = new FuzzGen({foo: "bar"});
+    it.only("fuzzes an object", function() {
+    	var fg = new FuzzGen({foo: "bar", blah: "test"});
     	console.log (fg.fuzz());
     });
     it("register types");
