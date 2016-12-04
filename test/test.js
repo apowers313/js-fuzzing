@@ -1,18 +1,40 @@
 var assert = require("chai").assert;
 var _ = require("lodash");
 var traverse = require("traverse");
-var FuzzGen = require("../fuzz.js");
+var FuzzGen = require("../index.js");
+var mandglib = require("../lib/mandg.js");
+var MandG = mandglib.MandG;
+var Generator = mandglib.Generator;
+var Mutator = mandglib.Mutator;
 
 describe("basic tests", function() {
-    it("fuzzes a string", function() {
+    it("can create a new fuzz object", function () {
+        new FuzzGen("this is a test");
+    });
+
+    it.only("fuzzes a string", function() {
     	var fg = new FuzzGen("this is a test");
     	console.log (fg.fuzz());
     });
-    it.only("fuzzes an object", function() {
+
+    it("fuzzes an object", function() {
     	var fg = new FuzzGen({foo: "bar", blah: "test"});
     	console.log (fg.fuzz());
     });
+
+    it("can't register two of the same type", function() {
+        var fg = new FuzzGen({foo: "bar", blah: "test"});
+        var mandgObj = new MandG("foo", function(){});
+        fg.registerType (mandgObj);
+        assert.throws(
+            function() {
+                fg.registerType (mandgObj);
+            },
+            TypeError);
+    })
+
     it("register types");
+
     it("right type identification", function() {
         var fg = new FuzzGen();
         assert.equal(fg.resolveType(undefined), "undefined");
