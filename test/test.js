@@ -7,7 +7,7 @@ var MandG = mandglib.MandG;
 var Generator = mandglib.Generator;
 var Mutator = mandglib.Mutator;
 
-describe("basic tests", function() {
+describe.only("basic tests", function() {
     it("can create a new fuzz object", function () {
         new FuzzGen("this is a test");
     });
@@ -24,8 +24,21 @@ describe("basic tests", function() {
 
     it.only("creates predictable random sequences", function() {
         var fg = new FuzzGen("this is a test", {seed: 0});
-        assert.equal (0.038085370776470735, Math.random());
-        assert.equal (_.random(0, 100, false), 3);
+        assert.equal (fg.seed, 0);
+
+        assert.equal (0.038085370776470735, Math.random(), "first random test");
+        assert.equal (_.random(0, 100, false), 8, "first random test");
+        console.log ("Random:", Math.random());
+
+        fg = new FuzzGen("this is a test", {seed: 0});
+        assert.equal (fg.seed, 0);
+        assert.equal (0.038085370776470735, Math.random(), "second random test");
+        assert.equal (_.random(0, 100, false), 8, "second random test");
+        console.log ("Random:", Math.random());
+
+        fg = new FuzzGen("this is a test");
+        assert.notEqual (fg.seed, 0);
+        assert.notEqual (0.038085370776470735, Math.random());
     });
 
     it("can't register two of the same type", function() {
