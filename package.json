@@ -4,7 +4,7 @@
   "description": "A library for JavaScript fuzz / monkey / mutation / generation testing",
   "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha ./test"
   },
   "keywords": [
     "fuzz",

@@ -22,7 +22,7 @@ describe.only("basic tests", function() {
     	console.log (fg.fuzz());
     });
 
-    it.only("creates predictable random sequences", function() {
+    it("creates predictable random sequences", function() {
         var fg = new FuzzGen("this is a test", {seed: 0});
         assert.equal (fg.seed, 0);
 
