@@ -7,7 +7,7 @@ var MandG = mandglib.MandG;
 var Generator = mandglib.Generator;
 var Mutator = mandglib.Mutator;
 
-describe.only("basic tests", function() {
+describe("basic tests", function() {
     it("can create a new fuzz object", function () {
         new FuzzGen("this is a test");
     });
