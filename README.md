@@ -65,3 +65,13 @@ TODO
 
 ## registerGenerator
 TODO
+
+// TODO: new types:
+// - JSON
+// - JWT
+// - base64
+// - hex
+// - ByteArray
+// - TypedArray
+// - arrayofbytes
+// - HTML
