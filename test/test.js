@@ -1,5 +1,5 @@
 var assert = require("chai").assert;
-var _ = require("lodash");
+var _ = require("../lib/lodash-wrapper");
 var traverse = require("traverse");
 var FuzzGen = require("../index.js");
 var mandglib = require("../lib/mandg.js");
@@ -12,7 +12,7 @@ describe("basic tests", function() {
         new FuzzGen("this is a test");
     });
 
-    it.only("fuzzes a string", function() {
+    it("fuzzes a string", function() {
     	var fg = new FuzzGen("this is a test");
     	console.log (fg.fuzz());
     });
@@ -20,6 +20,12 @@ describe("basic tests", function() {
     it("fuzzes an object", function() {
     	var fg = new FuzzGen({foo: "bar", blah: "test"});
     	console.log (fg.fuzz());
+    });
+
+    it.only("creates predictable random sequences", function() {
+        var fg = new FuzzGen("this is a test", {seed: 0});
+        assert.equal (0.038085370776470735, Math.random());
+        assert.equal (_.random(0, 100, false), 3);
     });
 
     it("can't register two of the same type", function() {
