@@ -1,9 +1,11 @@
 var assert = require("chai").assert;
 
-var mandglib = require("../lib/mandg.js");
-var MandG = mandglib.MandG;
-var Generator = mandglib.Generator;
-var Mutator = mandglib.Mutator;
+var {
+    MandG,
+    Generator,
+    Mutator,
+    MandGTypeManager
+} = require("../lib/mandg.js");
 
 describe("mutator and generator (MandG) class tests", function() {
     it("throws if no args", function() {
@@ -17,7 +19,7 @@ describe("mutator and generator (MandG) class tests", function() {
     it("throws if type isn't a string", function() {
         assert.throws(
             function() {
-                new MandG({}, function(){});
+                new MandG({}, function() {});
             },
             TypeError);
     });
@@ -31,7 +33,7 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("can create a class", function() {
-        new MandG("string", function(){});
+        new MandG("string", function() {});
     });
 
     it("can be extended", function() {
@@ -53,18 +55,18 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("can addGenerator", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         var g = new Generator("name", function() {});
         mandg.addGenerator(g);
     });
 
     it("can addGenerator based on function", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         mandg.addGenerator(function foo() {});
     });
 
     it("fails addGenerator when gets wrong arg", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         assert.throws(
             function() {
                 mandg.addGenerator("test");
@@ -72,7 +74,7 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("fails addGenerator when gets no arg", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         assert.throws(
             function() {
                 mandg.addGenerator();
@@ -80,7 +82,7 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("can addMutator", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         var g = new Mutator("name", function(arg) {
             return arg;
         });
@@ -88,14 +90,14 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("can addMutator based on function", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         mandg.addMutator(function(arg) {
             return arg;
         });
     });
 
     it("fails addMutator when gets wrong arg", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         assert.throws(
             function() {
                 mandg.addMutator("test");
@@ -103,7 +105,7 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("fails addMutator when gets no arg", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         assert.throws(
             function() {
                 mandg.addMutator();
@@ -111,13 +113,13 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("can addSubtype", function() {
-        var mandg = new MandG("string", function(){});
-        var mandg2 = new MandG("x", function(){});
+        var mandg = new MandG("string", function() {});
+        var mandg2 = new MandG("x", function() {});
         mandg.addSubtype(mandg2);
     });
 
     it("fails when subtype is recursive", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         assert.throws(
             function() {
                 mandg.addSubtype(mandg);
@@ -125,7 +127,7 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("fails addSubtype when gets wrong arg", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         assert.throws(
             function() {
                 mandg.addSubtype("test");
@@ -133,7 +135,7 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("fails addSubtype when gets no arg", function() {
-        var mandg = new MandG("string", function(){});
+        var mandg = new MandG("string", function() {});
         assert.throws(
             function() {
                 mandg.addSubtype();
@@ -141,8 +143,8 @@ describe("mutator and generator (MandG) class tests", function() {
     });
 
     it("fails when same subtype is added twice", function() {
-        var mandg = new MandG("string", function(){});
-        var mandg2 = new MandG("x", function(){});
+        var mandg = new MandG("string", function() {});
+        var mandg2 = new MandG("x", function() {});
         assert.throws(
             function() {
                 mandg.addSubtype(mandg2);
@@ -236,3 +238,34 @@ describe("mutator class tests", function() {
         m.fn(1);
     });
 });
+
+describe("MandG Manager tests", function() {
+    it("right type identification", function() {
+        var mgr = new MandGTypeManager();
+        var mandg;
+
+        // mandg = c.resolveType(undefined);
+        // assert.instanceOf (mandg, MandG);
+        // assert.equal(mandg.type, "undefined");
+
+        // check string type
+        mandg = mgr.resolveType("beer");
+        assert.instanceOf(mandg, MandG);
+        assert.equal(mandg.type, "string");
+
+        // check object type
+        mandg = mgr.resolveType({
+            foo: "bar"
+        });
+        assert.instanceOf(mandg, MandG);
+        assert.equal(mandg.type, "object");
+
+        // assert.equal(c.resolveType([1, 2, 3]), "array");
+        // assert.equal(c.resolveType(/foo/), "regexp");
+        // assert.equal(c.resolveType(new Date()), "date");
+        // assert.equal(c.resolveType(true), "boolean");
+        // assert.equal(c.resolveType(null), "null");
+        // assert.equal(c.resolveType(42), "number");
+        // assert.equal(c.resolveType(function() {}), "function");
+    });
+})
