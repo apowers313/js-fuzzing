@@ -24,6 +24,7 @@
   "dependencies": {
     "dependency-graph": "^0.5.0",
     "lodash": "^4.11.2",
+    "probability-distributions": "^0.9.1",
     "seedrandom": "^2.4.2",
     "traverse": "^0.6.6"
   }
