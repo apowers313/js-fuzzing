@@ -1,5 +1,6 @@
 var assert = require("chai").assert;
-
+var mockery = require("mockery");
+var sinon = require("sinon");
 var {
     MandG,
     Generator,
@@ -28,6 +29,22 @@ describe("mutator and generator (MandG) class tests", function() {
         assert.throws(
             function() {
                 new MandG("test", {});
+            },
+            TypeError);
+    });
+
+    it("throws if parent isn't a string", function() {
+        assert.throws(
+            function() {
+                new MandG("test", {parent: ["foo"]});
+            },
+            TypeError);
+    });
+
+    it("throws if depends isn't an array", function() {
+        assert.throws(
+            function() {
+                new MandG("test", {depends: "foo"});
             },
             TypeError);
     });
@@ -268,4 +285,158 @@ describe("MandG Manager tests", function() {
         // assert.equal(c.resolveType(42), "number");
         // assert.equal(c.resolveType(function() {}), "function");
     });
-})
+});
+
+describe("mandg manager module loading tests", function() {
+    var mgr;
+
+    before(function() {
+        new MandGTypeManager().forceReset();
+    });
+
+    beforeEach(function() {
+        mockery.enable({
+            useCleanCache: true
+        });
+        mockery.warnOnUnregistered(false);
+        mockery.warnOnReplace(false);
+    });
+
+    afterEach(function() {
+        mockery.deregisterAll();
+        mockery.disable();
+        if (mgr instanceof MandGTypeManager) {
+            mgr.forceReset();
+        }
+    });
+
+    function retTrue() {
+        return true;
+    }
+
+    it("loads the specified modules", function() {
+        var mandg1 = new MandG("type1", retTrue);
+        var mandg2 = new MandG("type2", retTrue);
+        mockery.registerMock("mod1", mandg1);
+        mockery.registerMock("mod2", mandg2);
+        var modList = ["mod1", "mod2"];
+        mgr = new MandGTypeManager({
+            mandgReplacementModules: modList
+        });
+        console.log ("mgr types:", mgr.types);
+        assert.deepEqual(mgr.types, {
+            type1: mandg1,
+            type2: mandg2
+        });
+    });
+
+    it.skip("loads a mix of internal and external modules", function() {
+        var mandg1 = new MandG("type1", retTrue);
+        var mandg2 = new MandG("type2", retTrue);
+        mockery.registerMock("mod1", mandg1);
+        mockery.registerMock("mod2", mandg2);
+        var modList = ["mod1", "mod2"];
+        mgr = new MandGTypeManager({
+            mandgModuleList: modList
+        });
+        assert.deepEqual(mgr.types, {
+            type1: mandg1,
+            type2: mandg2
+        });
+    });
+
+    it("registers types in the right order based on depends", function() {
+        var mandg1 = new MandG("type1", retTrue, {
+            depends: ["type2"]
+        });
+        var mandg2 = new MandG("type2", retTrue);
+        mockery.registerMock("mod1", mandg1);
+        mockery.registerMock("mod2", mandg2);
+        var modList = ["mod1", "mod2"];
+        mgr = new MandGTypeManager({
+            mandgReplacementModules: modList
+        });
+        assert.deepEqual(mgr.types, {
+            type1: mandg1,
+            type2: mandg2
+        });
+    });
+
+    it("registers types in the right order based on parents", function() {
+        var mandg1 = new MandG("type1", retTrue, {
+            parent: "type2"
+        });
+        var mandg2 = new MandG("type2", retTrue, {
+            parent: "type3"
+        });
+        var mandg3 = new MandG("type3", retTrue);
+        mockery.registerMock("mod1", mandg1);
+        mockery.registerMock("mod2", mandg2);
+        mockery.registerMock("mod3", mandg3);
+        var modList = ["mod1", "mod2", "mod3"];
+        var spy = sinon.spy(MandGTypeManager.prototype, "registerType");
+        mgr = new MandGTypeManager({
+            mandgReplacementModules: modList
+        });
+        assert(spy.calledThrice, "spy should have been called three times");
+        assert(spy.firstCall.calledWithExactly(mandg3));
+        assert(spy.secondCall.calledWithExactly(mandg2));
+        assert(spy.thirdCall.calledWithExactly(mandg1));
+        assert.equal(mandg1.parent, mandg2);
+        assert.equal(mandg2.parent, mandg3);
+        assert.isUndefined(mandg3.parent);
+    });
+
+    it("fails when parent not found", function() {
+        var mandg1 = new MandG("type1", retTrue, {
+            parent: "noparent"
+        });
+        mockery.registerMock("mod1", mandg1);
+        var modList = ["mod1"];
+        assert.throws(function() {
+            mgr = new MandGTypeManager({
+                mandgReplacementModules: modList
+            });
+        }, TypeError, /^parent 'noparent' not found/);
+    });
+
+    it("fails when depends not found", function() {
+        var mandg1 = new MandG("type1", retTrue, {
+            depends: ["nosuchthing"]
+        });
+        mockery.registerMock("mod1", mandg1);
+        var modList = ["mod1"];
+        assert.throws(function() {
+            mgr = new MandGTypeManager({
+                mandgReplacementModules: modList
+            });
+        }, TypeError, /^dependency 'nosuchthing' not found/);
+    });
+
+    it("throws when there's a dependency loop", function() {
+        var mandg1 = new MandG("type1", retTrue, {
+            parent: "type2"
+        });
+        var mandg2 = new MandG("type2", retTrue, {
+            parent: "type3"
+        });
+        var mandg3 = new MandG("type3", retTrue, {
+            parent: "type1"
+        });
+        mockery.registerMock("mod1", mandg1);
+        mockery.registerMock("mod2", mandg2);
+        mockery.registerMock("mod3", mandg3);
+        var modList = ["mod1", "mod2", "mod3"];
+        assert.throws(function() {
+
+            mgr = new MandGTypeManager({
+                mandgReplacementModules: modList
+            });
+        }, Error, /^Dependency Cycle Found:/);
+    });
+
+    it("fails when module is not found");
+});
+
+/* JSHINT */
+/* globals beforeEach, afterEach  */
