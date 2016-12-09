@@ -3,6 +3,8 @@ Fuzzing for JavaScript objects and functions
 
 Using an existing object or array of function arguments as a schema, and mutates or generates based on that schema. Extensible to add new types, mutators or generators.
 
+For more documentation see: http://apowers313.github.io/js-fuzzing/
+
 ## Installation
 
 `npm install js-fuzz`
