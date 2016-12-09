@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width">
+	<title>JS Fuzzing Source: lib/cooker.js</title>
+
+	<!--[if lt IE 9]>
+	<script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+	<![endif]-->
+	<link type="text/css" rel="stylesheet" href="styles/sunlight.default.css">
+
+	<link type="text/css" rel="stylesheet" href="styles/site.spacelab.css">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-default navbar-fixed-top ">
+<div class="container">
+	<div class="navbar-header">
+		<a class="navbar-brand" href="index.html">JS Fuzzing</a>
+		<button class="navbar-toggle" type="button" data-toggle="collapse" data-target="#topNavigation">
+			<span class="icon-bar"></span>
+			<span class="icon-bar"></span>
+			<span class="icon-bar"></span>
+        </button>
+	</div>
+	<div class="navbar-collapse collapse" id="topNavigation">
+		<ul class="nav navbar-nav">
+			
+			<li class="dropdown">
+				<a href="modules.list.html" class="dropdown-toggle" data-toggle="dropdown">Modules<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="module-lodash-wrapper.html">lodash-wrapper</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="Cooker.html">Cooker</a></li><li><a href="Generator.html">Generator</a></li><li><a href="MandG.html">MandG</a></li><li><a href="Mutator.html">Mutator</a></li><li><a href="Recipe.html">Recipe</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="global.html#Fuzz">Fuzz</a></li>
+				</ul>
+			</li>
+			
+		</ul>
+        
+            <div class="col-sm-3 col-md-3">
+                <form class="navbar-form" role="search">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Search" name="q" id="search-input">
+                        <div class="input-group-btn">
+                            <button class="btn btn-default" id="search-submit"><i class="glyphicon glyphicon-search"></i></button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        
+	</div>
+
+</div>
+</div>
+
+
+<div class="container" id="toc-content">
+<div class="row">
+
+	
+	<div class="col-md-12">
+	
+		<div id="main">
+			
+
+		<h1 class="page-title">Source: lib/cooker.js</h1>
+    
+<section>
+    <article>
+        <pre
+            class="sunlight-highlight-javascript linenums">var _ = require("./lodash-wrapper.js");
+var pd = require("probability-distributions");
+var {
+    MandG
+} = require("./mandg.js");
+
+/**
+ * takes a `thing` object and a bunch of random numbers and
+ * spits out a Recipe
+ */
+class Cooker {
+    /**
+     * Cooker constructor
+     * @param {object} opts - options for the new cooker
+     * @param {string} opts.numPathsDistribution - when selecting the number of paths from `thing` to mangle, this is the distribution. Options are "low", "uniform" or "split". Low is more likely to pick a low number of paths (e.g. - 1 or 2), uniform is likely to pick any number of paths, and split is likely to pick a low number or the max number.
+     */
+    constructor(opts) {
+        opts = opts || {};
+        var defaults = {
+            numPathsDistribution: "low",
+            weightMap: new Map([
+                ["generate", 3],
+                ["mutate", 3],
+                ["generateAll", 1],
+                ["mutateParent", 1]
+            ])
+        };
+        _.defaultsDeep(opts, defaults);
+
+        this.numPathsDistribution = opts.numPathsDistribution;
+        this.weightMap = opts.weightMap;
+
+        // calculated in init
+        this.weightedOpList = [];
+    }
+
+    /**
+     * initializes the Cooker with a `thing` object and does any configuration necessary
+     * @param {any} thing - the object, string, array, null, or whatever that will be mangled by the fuzzer
+     */
+    init(thing) {
+        // save thing for later
+        this.thing = _.cloneDeep(thing);
+
+        // adds one entry of a function for every weight count
+        for (let weightType of this.weightMap) {
+            var weight = weightType[1];
+            var functionName = weightType[0];
+            for (let i = 0; i &lt; weight; i++) {
+                this.weightedOpList.push(functionName);
+            }
+        }
+
+        // create the path list
+        this.pathList = _.invokeMap(traverse(thing).paths(), Array.prototype.join, ".");
+
+        // mark initialization as complete
+        this.initialized = true;
+
+        return this;
+    }
+
+    getRandomPathCount(max) {
+        pd.prng = Math.random;
+
+        // three options:
+        switch (this.numPathsDistribution) {
+            case "uniform": // 1. uniform distribution
+                return _.random(1, max);
+            case "low": // 2. low-number heavy distribution
+                return pd.rbinom(1, max - 1, 0.1)[0] + 1;
+            case "split": // 3. split between min and max, with an even sprinkling inbetween
+                return (Math.ceil(pd.rbeta(1, 0.5, 0.6)[0] * max - 1)) + 1;
+        }
+    }
+
+    selectPaths(list) {
+        if (list.length === 1) return list;
+        var count = this.getRandomPathCount(list.length - 1);
+        return _.sampleSize(list, count);
+    }
+
+    selectOp(mandg) {
+        var op;
+        var opGenerator;
+        do {
+            opGenerator = _.sample(this.weightedOpList);
+            console.log("op gen:", opGenerator);
+            this[opGenerator](mandg);
+        } while (!op);
+
+        return op;
+    }
+
+    generate(mandg) {
+        return _.sample(mandg.generator);
+    }
+
+    mutate(mandg) {
+        return _.sample(mandg.mutator);
+    }
+
+    generateAll() {
+        throw new Error("generateAll not implemented");
+        return _.sample(this.generateAllList);
+    }
+
+    mutateParent(mandg) {
+        throw new Error("mutateParent not implemented");
+        var mutateList = [];
+        while (mandg) {
+            mutateList.push(...mandg.mutators);
+            mandg = mandg.parent;
+        }
+        return _.sample(mutateList);
+    }
+
+    createRecipe(thing, pathList, typeList) {
+        if (!Array.isArray(pathList)) {
+            throw new TypeError("createRecipe expected first arg to be pathList array, got:", pathList);
+        }
+
+        if (!Array.isArray(typeList)) {
+            throw new TypeError("createRecipe expected second arg to be typeList array, got:", typeList);
+        }
+
+        var selectedPaths = this.selectPaths(pathList);
+
+        var recipe = new Recipe();
+        for (let path of selectedPaths) {
+            console.log("path");
+            // extract the specific item from the path in the thing object
+            var item = _.get(thing, path);
+            // find the matching mandg for the thing
+            var mandg = this.resolveType(item);
+            // find the operation we want to perform
+            var op = this.selectOp(path, mandg);
+            recipe.addStep(path, op);
+        }
+        return recipe;
+    }
+}
+
+/**
+ * The recipe instructs the Fuzzer what steps to take to mutate a `thing`
+ */
+class Recipe {
+    constructor() {
+        // this.length
+        this.steps = new Set();
+        // this.steps = [{path: "", operation: ""}]
+    }
+
+    get length() {
+        return this.steps.size;
+    }
+
+    addStep(path, op) {
+        var step = {
+            path: path,
+            operation: op
+        };
+        this.steps.add(step);
+    }
+
+    // toString
+}
+
+module.exports = {
+    Cooker: Cooker,
+    Recipe: Recipe
+};</pre>
+    </article>
+</section>
+
+
+
+
+
+		</div>
+	</div>
+
+	<div class="clearfix"></div>
+
+	
+
+</div>
+</div>
+
+
+    <div class="modal fade" id="searchResults">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <h4 class="modal-title">Search results</h4>
+          </div>
+          <div class="modal-body"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+    </div>
+
+
+<footer>
+
+
+	<span class="copyright">
+	Copyright 2016, Adam Powers
+	</span>
+
+<span class="jsdoc-message">
+	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a>
+	
+		on 2016-12-08T19:37:44-08:00
+	
+	using the <a href="https://github.com/docstrap/docstrap">DocStrap template</a>.
+</span>
+</footer>
+
+<script src="scripts/docstrap.lib.js"></script>
+<script src="scripts/toc.js"></script>
+
+    <script type="text/javascript" src="scripts/fulltext-search-ui.js"></script>
+
+
+<script>
+$( function () {
+	$( "[id*='$']" ).each( function () {
+		var $this = $( this );
+
+		$this.attr( "id", $this.attr( "id" ).replace( "$", "__" ) );
+	} );
+
+	$( ".tutorial-section pre, .readme-section pre, pre.prettyprint.source" ).each( function () {
+		var $this = $( this );
+
+		var example = $this.find( "code" );
+		exampleText = example.html();
+		var lang = /{@lang (.*?)}/.exec( exampleText );
+		if ( lang && lang[1] ) {
+			exampleText = exampleText.replace( lang[0], "" );
+			example.html( exampleText );
+			lang = lang[1];
+		} else {
+			var langClassMatch = example.parent()[0].className.match(/lang\-(\S+)/);
+			lang = langClassMatch ? langClassMatch[1] : "javascript";
+		}
+
+		if ( lang ) {
+
+			$this
+			.addClass( "sunlight-highlight-" + lang )
+			.addClass( "linenums" )
+			.html( example.html() );
+
+		}
+	} );
+
+	Sunlight.highlightAll( {
+		lineNumbers : true,
+		showMenu : true,
+		enableDoclinks : true
+	} );
+
+	$.catchAnchorLinks( {
+        navbarOffset: 10
+	} );
+	$( "#toc" ).toc( {
+		anchorName  : function ( i, heading, prefix ) {
+			return $( heading ).attr( "id" ) || ( prefix + i );
+		},
+		selectors   : "#toc-content h1,#toc-content h2,#toc-content h3,#toc-content h4",
+		showAndHide : false,
+		smoothScrolling: true
+	} );
+
+	$( "#main span[id^='toc']" ).addClass( "toc-shim" );
+	$( '.dropdown-toggle' ).dropdown();
+
+    $( "table" ).each( function () {
+      var $this = $( this );
+      $this.addClass('table');
+    } );
+
+} );
+</script>
+
+
+
+<!--Navigation and Symbol Display-->
+
+
+<!--Google Analytics-->
+
+
+
+    <script type="text/javascript">
+        $(document).ready(function() {
+            SearcherDisplay.init();
+        });
+    </script>
+
+
+</body>
+</html>

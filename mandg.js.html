@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width">
+	<title>JS Fuzzing Source: mandg.js</title>
+
+	<!--[if lt IE 9]>
+	<script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+	<![endif]-->
+	<link type="text/css" rel="stylesheet" href="styles/sunlight.default.css">
+
+	<link type="text/css" rel="stylesheet" href="styles/site.spacelab.css">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-default navbar-fixed-top ">
+<div class="container">
+	<div class="navbar-header">
+		<a class="navbar-brand" href="index.html">JS Fuzzing</a>
+		<button class="navbar-toggle" type="button" data-toggle="collapse" data-target="#topNavigation">
+			<span class="icon-bar"></span>
+			<span class="icon-bar"></span>
+			<span class="icon-bar"></span>
+        </button>
+	</div>
+	<div class="navbar-collapse collapse" id="topNavigation">
+		<ul class="nav navbar-nav">
+			
+			<li class="dropdown">
+				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="Cooker.html">Cooker</a></li><li><a href="Generator.html">Generator</a></li><li><a href="MandG.html">MandG</a></li><li><a href="Mutator.html">Mutator</a></li><li><a href="Recipe.html">Recipe</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
+				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="global.html#Fuzz">Fuzz</a></li>
+				</ul>
+			</li>
+			
+		</ul>
+        
+            <div class="col-sm-3 col-md-3">
+                <form class="navbar-form" role="search">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Search" name="q" id="search-input">
+                        <div class="input-group-btn">
+                            <button class="btn btn-default" id="search-submit"><i class="glyphicon glyphicon-search"></i></button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        
+	</div>
+
+</div>
+</div>
+
+
+<div class="container" id="toc-content">
+<div class="row">
+
+	
+	<div class="col-md-12">
+	
+		<div id="main">
+			
+
+		<h1 class="page-title">Source: mandg.js</h1>
+    
+<section>
+    <article>
+        <pre
+            class="sunlight-highlight-javascript linenums">var _ = require("./lodash-wrapper.js");
+var traverse = require("traverse");
+var DepGraph = require("dependency-graph").DepGraph;
+
+/**
+ * Mutator
+ *
+ * Generic Mutator class
+ */
+class Mutator {
+    constructor(name, fn, opts) {
+        // check args
+        if (typeof name !== "string") {
+            throw new TypeError("Mutator constructor expected 'name' to be string, got:" + name);
+        }
+        if (typeof fn !== "function") {
+            throw new TypeError("Mutator constructor expected 'fn' to be function, got:" + typeof fn);
+        }
+        if (fn.length !== 1) {
+            throw new TypeError("Mutator constructor expected 'fn' to have zero args, has:" + fn.length);
+        }
+        opts = opts || {};
+
+        this.tags = [];
+        this.name = name;
+        this.fn = fn;
+    }
+
+    fn(thing) {
+        throw new Error(`Mutating ${thing} in ${this.name}: mutator not implemented`);
+    }
+}
+
+/**
+ * Generator
+ *
+ * Generic Generator class
+ */
+class Generator {
+    constructor(name, fn, opts) {
+        // check args
+        if (typeof name !== "string") {
+            throw new TypeError("Generator constructor expected 'name' to be string, got:" + name);
+        }
+        if (typeof fn !== "function") {
+            throw new TypeError("Generator constructor expected 'fn' to be function, got:" + typeof fn);
+        }
+        if (fn.length !== 0) {
+            throw new TypeError("Generator constructor expected 'fn' to have zero args, has:" + fn.length);
+        }
+        opts = opts || {};
+
+        this.tags = [];
+        this.name = name;
+        this.fn = fn;
+    }
+
+    fn() {
+        throw new Error(`Generator in ${this.name} not implemented`);
+    }
+}
+
+/**
+ * MandG
+ *
+ * Mutators and Generators (MandG) container class
+ * has all the logic around the specific mutators and generators for a specific type
+ */
+class MandG {
+    constructor(type, check, opts) {
+        if (typeof type !== "string") {
+            throw new TypeError("MandG constructor expected type, got: " + type);
+        }
+
+        if (typeof check !== "function") {
+            throw new TypeError("MandG constructor expected 'check' to be a function, got: " + typeof check);
+        }
+
+        // set default options
+        opts = opts || {};
+        var defaults = {};
+        _.defaultsDeep(opts, defaults);
+
+        if (!Array.isArray (opts.depends) &amp;&amp; opts.depends !== undefined) {
+            throw new TypeError ("Expected dependencies to be array, got: " + typeof opts.depends);
+        }
+        if (typeof opts.parent !== "string" &amp;&amp; opts.parent !== undefined) {
+            throw new TypeError ("Expected parent to be string, got: " + typeof opts.parent);
+        }
+
+        this.depends = opts.depends || []
+        this.parent = opts.parent || undefined;
+
+        // configure options
+        this.type = type;
+        this.name = type;
+        this.check = check;
+
+        // for future use
+        // TODO: use Maps
+        this.mutator = {};
+        this.generator = {};
+        this.subtype = {};
+        this.utils = {};
+    }
+
+    check(thing) {
+        throw new Error(`Adding ${thing}: check not implemented`);
+    }
+
+    addMutator(m) {
+        // if mutator is a function, convert it to the mutator class
+        if (typeof m === "function") {
+            m = new Mutator(m.name, m);
+        }
+
+        // check typeof Mutator
+        if (!(m instanceof Mutator)) {
+            throw new TypeError("addMutator expected type Mutator, got: " + typeof m);
+        }
+
+        // TODO: check to make sure mutator doesn't already exist?
+        var name = m.name;
+        this.mutator[name] = m;
+    }
+
+    addGenerator(g) {
+        // if generator is a function, convert it to the generator class
+        if (typeof g === "function") {
+            g = new Generator(g.name, g);
+        }
+
+        // check typeof Generator
+        if (!(g instanceof Generator)) {
+            throw new TypeError("addGenerator expected type Generator, got: " + typeof g);
+        }
+
+        // TODO: check to make sure generator doesn't already exist?
+        var name = g.name;
+        this.generator[name] = g;
+    }
+
+    addSubtype(s) {
+        // check typeof Subtype
+        if (!(s instanceof MandG)) {
+            throw new TypeError("addSubtype expected type MandG, got: " + typeof s);
+        }
+
+        if (s === this) {
+            throw new TypeError("attempting to add MandG to itself: recursion not allowed");
+        }
+
+        // TODO: check to make sure type doesn't already exist
+        var name = s.name;
+        if (this.subtype[name] !== undefined) {
+            throw new TypeError("trying to add duplicate subtype: " + name);
+        }
+        this.subtype[name] = s;
+    }
+
+    /**
+     * filter
+     *
+     * filters mutators and generators based on a specific tag
+     */
+    filter(tag) {}
+}
+
+var mandgTypeManagerSingleton;
+class MandGTypeManager {
+    constructor(opts) {
+        // class is a singleton
+        if (mandgTypeManagerSingleton) return mandgTypeManagerSingleton;
+        mandgTypeManagerSingleton = this;
+
+        // set default options
+        opts = opts || {};
+        var defaults = {
+            mandgModuleList: ["array", "boolean", "date", "function", /*"null",*/ "number", "object", "regexp", "string", "undef"]
+        };
+        _.defaultsDeep(opts, defaults);
+
+        // a heirarchy of types
+        this.typeIndex = {};
+        // a flat list of all types
+        this.types = {};
+
+        // load all the built-in types
+        if (opts.mandgReplacementModules) {
+            this.mandgModuleList = opts.mandgReplacementModules;
+        } else {
+            this.mandgModuleList = opts.mandgModuleList;
+        }
+
+        var mandg;
+        var dependencyGraph = new DepGraph();
+        for (let idx in this.mandgModuleList) {
+            mandg = null;
+
+            try {
+                mandg = require(this.mandgModuleList[idx]);
+            } catch (err) {}
+
+            if (!mandg) try {
+                mandg = require(`./types/${this.mandgModuleList[idx]}.js`);
+            } catch (err) {}
+
+            // if (!(mandg instanceof MandG)) { // XXX TODO for some reason this is broken
+            if (!mandg) {
+                throw TypeError("Error loading mandg module: " + this.mandgModuleList[idx]);
+            }
+
+            // add the node to the dependency graph
+            // note that all nodes have to exist before dependencies can be added
+            dependencyGraph.addNode(mandg.type, mandg);
+        }
+
+        // map out dependencies
+        // TODO: save this order? replace module list?
+        var list = dependencyGraph.overallOrder();
+        for (let node of list) {
+            mandg = dependencyGraph.getNodeData(node);
+            // try to add parent as a dependency
+            if (mandg.parent) {
+                try {
+                    dependencyGraph.addDependency(mandg.type, mandg.parent);
+                } catch (err) {
+                    throw new TypeError(`parent '${mandg.parent}' not found when loading '${mandg.type}'`);
+                }
+            }
+            // try to add all depends as dependencies
+            for (let depName of mandg.depends) {
+                try {
+                    dependencyGraph.addDependency(mandg.type, depName);
+                } catch (err) {
+                    throw new TypeError(`dependency '${depName}' not found when loading '${mandg.type}'`);
+                }
+            }
+        }
+
+        for (let node of dependencyGraph.overallOrder()) {
+            mandg = dependencyGraph.getNodeData(node);
+            this.registerType(mandg);
+        }
+    }
+
+    /**
+     * Kills the singleton so that a new one will be created.
+     * Mostly useful for testing, but maybe other things too.
+     */
+    forceReset() {
+        mandgTypeManagerSingleton = null;
+    }
+
+    /**
+     * registers a new mandg type
+     */
+    registerType(newType) {
+        if (!(newType instanceof MandG)) {
+            throw new TypeError("expected 'newType' to be of type MandG, was: " + typeof mandg);
+        }
+        var name = newType.type;
+        var parent = newType.parent;
+
+        if (this.typeIndex[name] !== undefined) {
+            throw new TypeError("can't register type twice: " + name);
+        }
+
+        this.typeIndex[name] = newType;
+        if (parent === undefined) {
+            this.types[name] = newType;
+        } else {
+            var parentType = this.typeIndex[parent];
+            if (parentType === undefined) {
+                throw new TypeError(`registerType couldn't find parent '${parent}' when adding type ${newType.type}`);
+            }
+            parentType.addSubtype(newType);
+            newType.parent = parentType;
+        }
+    }
+
+    /**
+     * Turns a thing (string, object, null, etc.) into a mandg type
+     */
+    resolveType(thing) {
+        // recursively see if some 'type' in 'typeList' returns true when checking 'obj'
+        // if it does, that's our type... check the subtypes to make sure there's not something
+        // more specific
+        function findType(typeList, obj) {
+            var mandgList = _.map(typeList, function(m, t) {
+                if (m === undefined || t === undefined) return;
+                if (m.check(obj)) {
+                    return findType(m.subtype, obj) || m;
+                }
+            });
+
+            // type = _.flattenDeep (_.remove(type, _.isUndefined));
+            var mandg;
+            _.remove(mandgList, _.isUndefined);
+            if (mandgList.length > 1) {
+                throw new Error("found too many matching types");
+            }
+            if (mandgList.length === 0) mandg = undefined;
+            if (Array.isArray(mandgList)) {
+                mandg = _.flattenDeep(mandgList)[0];
+            }
+
+            return mandg;
+        }
+
+        return findType(this.types, thing);
+    }
+
+}
+
+module.exports = {
+    // classes
+    MandGTypeManager: MandGTypeManager,
+    MandG: MandG,
+    Mutator: Mutator,
+    Generator: Generator
+};</pre>
+    </article>
+</section>
+
+
+
+
+
+		</div>
+	</div>
+
+	<div class="clearfix"></div>
+
+	
+
+</div>
+</div>
+
+
+    <div class="modal fade" id="searchResults">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <h4 class="modal-title">Search results</h4>
+          </div>
+          <div class="modal-body"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+    </div>
+
+
+<footer>
+
+
+	<span class="copyright">
+	Copyright 2016, Adam Powers
+	</span>
+
+<span class="jsdoc-message">
+	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a>
+	
+		on 2016-12-08T19:35:08-08:00
+	
+	using the <a href="https://github.com/docstrap/docstrap">DocStrap template</a>.
+</span>
+</footer>
+
+<script src="scripts/docstrap.lib.js"></script>
+<script src="scripts/toc.js"></script>
+
+    <script type="text/javascript" src="scripts/fulltext-search-ui.js"></script>
+
+
+<script>
+$( function () {
+	$( "[id*='$']" ).each( function () {
+		var $this = $( this );
+
+		$this.attr( "id", $this.attr( "id" ).replace( "$", "__" ) );
+	} );
+
+	$( ".tutorial-section pre, .readme-section pre, pre.prettyprint.source" ).each( function () {
+		var $this = $( this );
+
+		var example = $this.find( "code" );
+		exampleText = example.html();
+		var lang = /{@lang (.*?)}/.exec( exampleText );
+		if ( lang && lang[1] ) {
+			exampleText = exampleText.replace( lang[0], "" );
+			example.html( exampleText );
+			lang = lang[1];
+		} else {
+			var langClassMatch = example.parent()[0].className.match(/lang\-(\S+)/);
+			lang = langClassMatch ? langClassMatch[1] : "javascript";
+		}
+
+		if ( lang ) {
+
+			$this
+			.addClass( "sunlight-highlight-" + lang )
+			.addClass( "linenums" )
+			.html( example.html() );
+
+		}
+	} );
+
+	Sunlight.highlightAll( {
+		lineNumbers : true,
+		showMenu : true,
+		enableDoclinks : true
+	} );
+
+	$.catchAnchorLinks( {
+        navbarOffset: 10
+	} );
+	$( "#toc" ).toc( {
+		anchorName  : function ( i, heading, prefix ) {
+			return $( heading ).attr( "id" ) || ( prefix + i );
+		},
+		selectors   : "#toc-content h1,#toc-content h2,#toc-content h3,#toc-content h4",
+		showAndHide : false,
+		smoothScrolling: true
+	} );
+
+	$( "#main span[id^='toc']" ).addClass( "toc-shim" );
+	$( '.dropdown-toggle' ).dropdown();
+
+    $( "table" ).each( function () {
+      var $this = $( this );
+      $this.addClass('table');
+    } );
+
+} );
+</script>
+
+
+
+<!--Navigation and Symbol Display-->
+
+
+<!--Google Analytics-->
+
+
+
+    <script type="text/javascript">
+        $(document).ready(function() {
+            SearcherDisplay.init();
+        });
+    </script>
+
+
+</body>
+</html>
