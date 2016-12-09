@@ -259,32 +259,27 @@ describe("mutator class tests", function() {
 describe("MandG Manager tests", function() {
     it("right type identification", function() {
         var mgr = new MandGTypeManager();
-        var mandg;
-
-        // mandg = c.resolveType(undefined);
-        // assert.instanceOf (mandg, MandG);
-        // assert.equal(mandg.type, "undefined");
-
-        // check string type
-        mandg = mgr.resolveType("beer");
-        assert.instanceOf(mandg, MandG);
-        assert.equal(mandg.type, "string");
 
         // check object type
-        mandg = mgr.resolveType({
+        var mandg = mgr.resolveType({
             foo: "bar"
         });
         assert.instanceOf(mandg, MandG);
         assert.equal(mandg.type, "object");
 
-        // assert.equal(c.resolveType([1, 2, 3]), "array");
-        // assert.equal(c.resolveType(/foo/), "regexp");
-        // assert.equal(c.resolveType(new Date()), "date");
-        // assert.equal(c.resolveType(true), "boolean");
-        // assert.equal(c.resolveType(null), "null");
-        // assert.equal(c.resolveType(42), "number");
-        // assert.equal(c.resolveType(function() {}), "function");
+        // check other types
+        assert.equal(mgr.resolveType("beer").type, "string");
+        assert.equal(mgr.resolveType([1, 2, 3]).type, "array");
+        assert.equal(mgr.resolveType(/foo/).type, "regexp");
+        assert.equal(mgr.resolveType(new Date()).type, "date");
+        assert.equal(mgr.resolveType(true).type, "boolean");
+        // assert.equal(mgr.resolveType(null).type, "null");
+        assert.equal(mgr.resolveType(42).type, "number");
+        assert.equal(mgr.resolveType(function() {}).type, "function");
+        assert.equal(mgr.resolveType(undefined).type, "undefined");
     });
+    it("right identifies null");
+    it("unknown type returns undefined"); /** @todo not sure how to test this, since all types are registered */
 });
 
 describe("mandg manager module loading tests", function() {
