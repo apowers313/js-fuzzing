@@ -1,11 +1,9 @@
 var assert = require("chai").assert;
 var {
     Cooker,
-    Recipe
-} = require("../lib/cooker.js");
-var {
+    Recipe,
     MandG
-} = require("../lib/mandg.js");
+} = require("../index.js");
 
 describe("cooker tests", function() {
     it("can create a cooker", function() {

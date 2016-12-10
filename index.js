@@ -3,12 +3,17 @@ var {
     MandG,
     Mutator,
     Generator
-} = require ("./lib/mandg.js");
+} = require("./lib/mandg.js");
 var {
     Cooker,
     Recipe
-} = require ("./lib/cooker.js");
-var Fuzz = require ("./lib/fuzz.js");
+} = require("./lib/cooker.js");
+var {
+    Fuzz
+} = require("./lib/fuzz.js");
+var {
+    debug
+} = require("./lib/debug.js");
 
 module.exports = {
     Fuzz: Fuzz,
@@ -18,4 +23,5 @@ module.exports = {
     Generator: Generator,
     Cooker: Cooker,
     Recipe: Recipe,
+    debug: debug
 };

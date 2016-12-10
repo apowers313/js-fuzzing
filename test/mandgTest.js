@@ -6,7 +6,7 @@ var {
     Generator,
     Mutator,
     MandGTypeManager
-} = require("../lib/mandg.js");
+} = require("../index.js");
 
 describe("mutator and generator (MandG) class tests", function() {
     it("throws if no args", function() {
@@ -36,7 +36,9 @@ describe("mutator and generator (MandG) class tests", function() {
     it("throws if parent isn't a string", function() {
         assert.throws(
             function() {
-                new MandG("test", {parent: ["foo"]});
+                new MandG("test", {
+                    parent: ["foo"]
+                });
             },
             TypeError);
     });
@@ -44,7 +46,9 @@ describe("mutator and generator (MandG) class tests", function() {
     it("throws if depends isn't an array", function() {
         assert.throws(
             function() {
-                new MandG("test", {depends: "foo"});
+                new MandG("test", {
+                    depends: "foo"
+                });
             },
             TypeError);
     });
@@ -156,6 +160,28 @@ describe("mutator and generator (MandG) class tests", function() {
         assert.throws(
             function() {
                 mandg.addSubtype();
+            }, TypeError);
+    });
+
+    it("can addUtil", function() {
+        var mandg = new MandG("string", function() {});
+        mandg.addUtil(function foo() {});
+        assert.isFunction(mandg.utils.foo);
+    });
+
+    it("throws error when addUtil isn't passed a function", function() {
+        var mandg = new MandG("string", function() {});
+        assert.throws(
+            function() {
+                mandg.addUtil("test");
+            }, TypeError);
+    });
+
+    it("throws error when addUtil gets anonymous function", function() {
+        var mandg = new MandG("string", function() {});
+        assert.throws(
+            function() {
+                mandg.addUtil(function() {});
             }, TypeError);
     });
 
@@ -278,6 +304,12 @@ describe("MandG Manager tests", function() {
         assert.equal(mgr.resolveType(function() {}).type, "function");
         assert.equal(mgr.resolveType(undefined).type, "undefined");
     });
+
+    it("forceReset works");
+    it("registerType works");
+    it("registerType works with parent");
+    it("registerType throws on duplicate registration");
+    it("registerType throws when passed non MandG object");
     it("right identifies null");
     it("unknown type returns undefined"); /** @todo not sure how to test this, since all types are registered */
 });
@@ -318,7 +350,6 @@ describe("mandg manager module loading tests", function() {
         mgr = new MandGTypeManager({
             mandgReplacementModules: modList
         });
-        console.log ("mgr types:", mgr.types);
         assert.deepEqual(mgr.types, {
             type1: mandg1,
             type2: mandg2
@@ -430,8 +461,44 @@ describe("mandg manager module loading tests", function() {
         }, Error, /^Dependency Cycle Found:/);
     });
 
+    it.skip("can lookup util", function() {
+        function fooTest() {}
+        var mandg = new MandG("foo", function() {});
+        mandg.addUtil(fooTest);
+        assert.isFunction(mandg.utils.fooTest);
+        mgr = new MandGTypeManager();
+        mgr.registerType(mandg);
+        assert.isObject(mgr.types.foo);
+        assert.isDefined(mgr.utils.foo);
+        assert.isUndefined(mgr.utils.bar);
+        assert.isFunction(mgr.utils.foo.fooTest);
+        assert.strictEqual(mgr.utils.foo.fooTest, fooTest);
+    });
+
+    it.skip("can call util from function", function() {
+        function barTest() {
+            this.utils.foo.fooTest();
+        }
+        var stub = sinon.stub();
+        function fooTest() {
+            stub();
+        }
+        var mandg1 = new MandG("foo", function() {});
+        mandg1.addUtil(fooTest);
+        var mandg2 = new MandG("bar", function() {});
+        mandg2.addGenerator(barTest);
+        mgr = new MandGTypeManager();
+        mgr.registerType(mandg1);
+        mgr.registerType(mandg2);
+        assert.isFunction(mgr.utils.foo.fooTest);
+        assert.isFunction(mgr.types.bar.generator.barTest.fn);
+        assert.strictEqual (stub.callCount, 0);
+        mgr.types.bar.generator.barTest.fn();
+        assert.strictEqual (stub.callCount, 1);
+    });
+
     it("fails when module is not found");
 });
 
 /* JSHINT */
-/* globals beforeEach, afterEach  */
+/* globals before, beforeEach, afterEach  */
