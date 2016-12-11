@@ -86,6 +86,14 @@ describe("mutator and generator (MandG) class tests", function() {
         mandg.addGenerator(function foo() {});
     });
 
+    it("fails while addGenerator based on anonymous function", function() {
+        var mandg = new MandG("string", function() {});
+        assert.throws(
+            function() {
+                mandg.addGenerator(function() {});
+            }, TypeError, "attempting to add Generator from function without a name");
+    });
+
     it("fails addGenerator when gets wrong arg", function() {
         var mandg = new MandG("string", function() {});
         assert.throws(
@@ -104,17 +112,27 @@ describe("mutator and generator (MandG) class tests", function() {
 
     it("can addMutator", function() {
         var mandg = new MandG("string", function() {});
-        var g = new Mutator("name", function(arg) {
+        var m = new Mutator("name", function(arg) {
             return arg;
         });
-        mandg.addMutator(g);
+        mandg.addMutator(m);
     });
 
     it("can addMutator based on function", function() {
         var mandg = new MandG("string", function() {});
-        mandg.addMutator(function(arg) {
+        mandg.addMutator(function foo(arg) {
             return arg;
         });
+    });
+
+    it("fails while addMutator based on anonymous function", function() {
+        var mandg = new MandG("string", function() {});
+        assert.throws(
+            function() {
+                mandg.addMutator(function(arg) {
+                    return arg;
+                });
+            }, TypeError);
     });
 
     it("fails addMutator when gets wrong arg", function() {
@@ -231,6 +249,11 @@ describe("generator class tests", function() {
         var g = new Generator("name", function() {});
         g.fn();
     });
+
+    it("generator is callable", function() {
+        var g = new Generator("name", function() {});
+        g();
+    });
 });
 
 describe("mutator class tests", function() {
@@ -274,11 +297,18 @@ describe("mutator class tests", function() {
             TypeError);
     });
 
-    it("can create a new mutator", function() {
+    it("can call the function", function() {
         var m = new Mutator("name", function(arg) {
             return arg;
         });
         m.fn(1);
+    });
+
+    it("mutator is callable", function() {
+        var m = new Mutator("name", function(arg) {
+            return arg;
+        });
+        m(1);
     });
 });
 
@@ -480,6 +510,7 @@ describe("mandg manager module loading tests", function() {
             this.utils.foo.fooTest();
         }
         var stub = sinon.stub();
+
         function fooTest() {
             stub();
         }
@@ -492,9 +523,9 @@ describe("mandg manager module loading tests", function() {
         mgr.registerType(mandg2);
         assert.isFunction(mgr.utils.foo.fooTest);
         assert.isFunction(mgr.types.bar.generator.barTest.fn);
-        assert.strictEqual (stub.callCount, 0);
+        assert.strictEqual(stub.callCount, 0);
         mgr.types.bar.generator.barTest.fn();
-        assert.strictEqual (stub.callCount, 1);
+        assert.strictEqual(stub.callCount, 1);
     });
 
     it("fails when module is not found");

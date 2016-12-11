@@ -13,7 +13,7 @@ describe("basic tests", function() {
 
     it("fuzzes a string", function() {
         var fg = new Fuzz("this is a test");
-        // console.log(fg.fuzz());
+        fg.fuzz();
     });
 
     it("fuzzes an object", function() {
@@ -21,7 +21,7 @@ describe("basic tests", function() {
             foo: "bar",
             blah: "test"
         });
-        // console.log(fg.fuzz());
+        fg.fuzz();
     });
 
     it("creates predictable random sequences", function() {
