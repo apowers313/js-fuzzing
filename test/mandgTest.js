@@ -212,6 +212,13 @@ describe("mutator and generator (MandG) class tests", function() {
                 mandg.addSubtype(mandg2);
             }, TypeError);
     });
+
+    it ("can borrow generator");
+    it ("can borrow mutator");
+    it ("throws when borrowing mutator with wrong module name");
+    it ("throws when borrowing generator with wrong module name");
+    it ("throws when borrowing mutator with wrong function name");
+    it ("throws when borrowing generator with wrong function name");
 });
 
 describe("generator class tests", function() {
@@ -315,6 +322,8 @@ describe("mutator class tests", function() {
 describe("MandG Manager tests", function() {
     it("right type identification", function() {
         var mgr = new MandGTypeManager();
+        // console.log ("mgr root:", mgr.root);
+        // console.log ("check:", mgr.root.check(""));
 
         // check object type
         var mandg = mgr.resolveType({
@@ -329,7 +338,7 @@ describe("MandG Manager tests", function() {
         assert.equal(mgr.resolveType(/foo/).type, "regexp");
         assert.equal(mgr.resolveType(new Date()).type, "date");
         assert.equal(mgr.resolveType(true).type, "boolean");
-        // assert.equal(mgr.resolveType(null).type, "null");
+        assert.equal(mgr.resolveType(null).type, "null");
         assert.equal(mgr.resolveType(42).type, "number");
         assert.equal(mgr.resolveType(function() {}).type, "function");
         assert.equal(mgr.resolveType(undefined).type, "undefined");
@@ -340,7 +349,6 @@ describe("MandG Manager tests", function() {
     it("registerType works with parent");
     it("registerType throws on duplicate registration");
     it("registerType throws when passed non MandG object");
-    it("right identifies null");
     it("unknown type returns undefined"); /** @todo not sure how to test this, since all types are registered */
 });
 
@@ -380,7 +388,7 @@ describe("mandg manager module loading tests", function() {
         mgr = new MandGTypeManager({
             mandgReplacementModules: modList
         });
-        assert.deepEqual(mgr.types, {
+        assert.deepEqual(mgr.root.subtype, {
             type1: mandg1,
             type2: mandg2
         });
@@ -395,7 +403,7 @@ describe("mandg manager module loading tests", function() {
         mgr = new MandGTypeManager({
             mandgModuleList: modList
         });
-        assert.deepEqual(mgr.types, {
+        assert.deepEqual(mgr.root.subtype, {
             type1: mandg1,
             type2: mandg2
         });
@@ -412,7 +420,7 @@ describe("mandg manager module loading tests", function() {
         mgr = new MandGTypeManager({
             mandgReplacementModules: modList
         });
-        assert.deepEqual(mgr.types, {
+        assert.deepEqual(mgr.root.subtype, {
             type1: mandg1,
             type2: mandg2
         });
@@ -440,7 +448,7 @@ describe("mandg manager module loading tests", function() {
         assert(spy.thirdCall.calledWithExactly(mandg1));
         assert.equal(mandg1.parent, mandg2);
         assert.equal(mandg2.parent, mandg3);
-        assert.isUndefined(mandg3.parent);
+        assert.deepEqual(mandg3.parent, mgr.root);
     });
 
     it("fails when parent not found", function() {
@@ -498,8 +506,8 @@ describe("mandg manager module loading tests", function() {
         assert.isFunction(mandg.utils.fooTest);
         mgr = new MandGTypeManager();
         mgr.registerType(mandg);
-        assert.isObject(mgr.types.foo);
-        assert.isDefined(mgr.utils.foo);
+        assert.isObject(mgr.root.subtype.foo);
+        assert.isDefined(mgr.root.subtype.foo);
         assert.isUndefined(mgr.utils.bar);
         assert.isFunction(mgr.utils.foo.fooTest);
         assert.strictEqual(mgr.utils.foo.fooTest, fooTest);
@@ -522,9 +530,9 @@ describe("mandg manager module loading tests", function() {
         mgr.registerType(mandg1);
         mgr.registerType(mandg2);
         assert.isFunction(mgr.utils.foo.fooTest);
-        assert.isFunction(mgr.types.bar.generator.barTest.fn);
+        assert.isFunction(mgr.root.subtype.bar.generator.barTest.fn);
         assert.strictEqual(stub.callCount, 0);
-        mgr.types.bar.generator.barTest.fn();
+        mgr.root.subtype.bar.generator.barTest.fn();
         assert.strictEqual(stub.callCount, 1);
     });
 
