@@ -66,7 +66,7 @@ describe("type tests", function() {
     testModule("boolean", true);
     testModule("date", new Date());
     testModule("function", function() {});
-    // testModule("null", null);
+    testModule("null", null);
     testModule("number", 3);
     testModule("object", {foo: "bar"});
     testModule("regexp", /abc/);
