@@ -1,0 +1,18 @@
+sudo: false
+cache:
+  directories:
+    - node_modules
+notifications:
+  email: true
+language: node_js
+node_js:
+  - '6'
+# before_install:
+#   - npm i -g npm@^2.0.0
+before_script:
+  - npm prune
+  - 'curl -Lo travis_after_all.py https://git.io/vLSON'
+after_success:
+  - python travis_after_all.py
+  - export $(cat .to_export_back)
+  - 'cat ./coverage/lcov.info | ./node_modules/.bin/coveralls'
