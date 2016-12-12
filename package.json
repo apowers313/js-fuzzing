@@ -6,7 +6,7 @@
   "scripts": {
     "test": "istanbul cover _mocha",
     "docs": "jsdoc -c ./jsdoc-conf.json",
-    "publish": "cat ./coverage/lcov.info | coveralls && gh-pages --repo https://$GH_TOKEN@github.com/apowers313/js-fuzzing.git --dist docs"
+    "publish": "istanbul-coveralls && gh-pages --dist docs"
   },
   "keywords": [
     "fuzz",
@@ -21,10 +21,10 @@
   "license": "MIT",
   "devDependencies": {
     "chai": "^3.5.0",
-    "coveralls": "^2.11.15",
     "gh-pages": "^0.12.0",
     "ink-docstrap": "^1.3.0",
     "istanbul": "^0.4.5",
+    "istanbul-coveralls": "^1.0.3",
     "jsdoc": "^3.4.3",
     "mocha": "^2.5.3",
     "mockery": "^2.0.0",
