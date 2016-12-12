@@ -41,34 +41,37 @@ function testModule(name, thing) {
 
 function testMutators(name, thing) {
     var mandg = require(`../lib/types/${name}.js`);
-    for (let mutatorName in mandg.mutator) {
-        if (mandg.mutator.hasOwnProperty(mutatorName)) {
-            it(mutatorName, function() {
-                mandg.mutator[mutatorName](_.cloneDeep(thing));
-            });
-        }
+    for (let mutatorName of Object.keys(mandg.mutator)) {
+        it(mutatorName, function() {
+            mandg.mutator[mutatorName](_.cloneDeep(thing));
+        });
     }
 }
 
 function testGenerators(name) {
     var mandg = require(`../lib/types/${name}.js`);
-    for (let generatorName in mandg.generator) {
-        if (mandg.generator.hasOwnProperty(generatorName)) {
-            it(generatorName, function() {
-                mandg.generator[generatorName]();
-            });
-        }
+    for (let generatorName of Object.keys(mandg.generator)) {
+        it(generatorName, function() {
+            mandg.generator[generatorName]();
+        });
     }
 }
 
 describe("type tests", function() {
+    it("test object", function() {
+        var mandg = require(`../lib/types/object.js`);
+        mandg.mutator.objAddKeys({foo: "bar"});
+        // console.log ("mandg.mutator.objAddKeys:", mandg.mutator.objAddKeys);
+    });
     testModule("array", ["a", "b", "c", 1, 2, 3]);
     testModule("boolean", true);
     testModule("date", new Date());
     testModule("function", function() {});
     testModule("null", null);
     testModule("number", 3);
-    testModule("object", {foo: "bar"});
+    testModule("object", {
+        foo: "bar"
+    });
     testModule("regexp", /abc/);
     testModule("string", "this is a test string");
     testModule("undef", undefined);
