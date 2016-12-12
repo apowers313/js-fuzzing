@@ -181,7 +181,7 @@ describe("mutator and generator (MandG) class tests", function() {
             }, TypeError);
     });
 
-    it("can addUtil", function() {
+    it.skip("can addUtil", function() {
         var mandg = new MandG("string", function() {});
         mandg.addUtil(function foo() {});
         assert.isFunction(mandg.utils.foo);
