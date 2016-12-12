@@ -1,4 +1,6 @@
 # js-fuzzing
+[![Build Status](https://travis-ci.org/apowers313/js-fuzzing.svg?branch=master)](https://travis-ci.org/apowers313/js-fuzzing) [![Coverage Status](https://coveralls.io/repos/github/apowers313/js-fuzzing/badge.svg?branch=master)](https://coveralls.io/github/apowers313/js-fuzzing?branch=master)
+
 Fuzzing for JavaScript objects and functions
 
 Using an existing object or array of function arguments as a schema, and mutates or generates based on that schema. Extensible to add new types, mutators or generators.
