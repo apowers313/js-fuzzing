@@ -6,7 +6,7 @@
   "scripts": {
     "test": "istanbul cover _mocha",
     "docs": "jsdoc -c ./jsdoc-conf.json",
-    "publish": "istanbul-coveralls && gh-pages --dist docs"
+    "publish": "istanbul-coveralls && gh-pages --silent --repo https://$GH_TOKEN@github.com/apowers313/js-fuzzing.git --dist docs"
   },
   "keywords": [
     "fuzz",
