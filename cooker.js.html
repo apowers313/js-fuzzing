@@ -31,16 +31,23 @@
 		<ul class="nav navbar-nav">
 			
 			<li class="dropdown">
+				<a href="modules.list.html" class="dropdown-toggle" data-toggle="dropdown">Modules<b class="caret"></b></a>
+				<ul class="dropdown-menu ">
+					<li><a href="module-lodash-wrapper.html">lodash-wrapper</a></li>
+				</ul>
+			</li>
+			
+			<li class="dropdown">
 				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="Cooker.html">Cooker</a></li><li><a href="Generator.html">Generator</a></li><li><a href="MandG.html">MandG</a></li><li><a href="Mutator.html">Mutator</a></li><li><a href="Recipe.html">Recipe</a></li>
+					<li><a href="Cooker.html">Cooker</a></li><li><a href="Fuzz.html">Fuzz</a></li><li><a href="Generator.html">Generator</a></li><li><a href="MandG.html">MandG</a></li><li><a href="MorGBase.html">MorGBase</a></li><li><a href="Mutator.html">Mutator</a></li><li><a href="Recipe.html">Recipe</a></li><li><a href="Step.html">Step</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="global.html#Fuzz">Fuzz</a></li>
+					<li><a href="global.html#mandgTypeManagerSingleton">mandgTypeManagerSingleton</a></li>
 				</ul>
 			</li>
 			
@@ -78,9 +85,10 @@
     <article>
         <pre
             class="sunlight-highlight-javascript linenums">var _ = require("./lodash-wrapper.js");
+var traverse = require("traverse");
 var pd = require("probability-distributions");
 var {
-    MandG
+    MandGTypeManager
 } = require("./mandg.js");
 
 /**
@@ -100,8 +108,8 @@ class Cooker {
             weightMap: new Map([
                 ["generate", 3],
                 ["mutate", 3],
-                ["generateAll", 1],
-                ["mutateParent", 1]
+                ["generateAny", 1],
+                ["mutateByParent", 1]
             ])
         };
         _.defaultsDeep(opts, defaults);
@@ -136,6 +144,9 @@ class Cooker {
         // mark initialization as complete
         this.initialized = true;
 
+        // add generateAny to the context of any calling function
+        new MandGTypeManager().addToContext("generateAny", this.generateAny);
+
         return this;
     }
 
@@ -153,9 +164,11 @@ class Cooker {
         }
     }
 
-    selectPaths(list) {
+    selectPaths() {
+        var list = this.pathList;
+
         if (list.length === 1) return list;
-        var count = this.getRandomPathCount(list.length - 1);
+        var count = this.getRandomPathCount(list.length);
         return _.sampleSize(list, count);
     }
 
@@ -164,8 +177,7 @@ class Cooker {
         var opGenerator;
         do {
             opGenerator = _.sample(this.weightedOpList);
-            console.log("op gen:", opGenerator);
-            this[opGenerator](mandg);
+            op = this[opGenerator](mandg);
         } while (!op);
 
         return op;
@@ -179,44 +191,72 @@ class Cooker {
         return _.sample(mandg.mutator);
     }
 
-    generateAll() {
-        throw new Error("generateAll not implemented");
-        return _.sample(this.generateAllList);
+    generateAny() {
+        if (this.generateAnyCache) return _.sample(this.generateAnyCache);
+
+        var mgr = new MandGTypeManager();
+        var genList = [];
+        gatherGenerators (mgr.root);
+
+        // recursively iterates all MandG to create a list of all generators
+        function gatherGenerators(mandg) {
+            // add all generators from this MandG to the list
+            for (let gen of Object.keys(mandg.generator)) {
+                genList.push (mandg.generator[gen]);
+            }
+            // iterate all subtypes
+            for (let sub of Object.keys(mandg.subtype)) {
+                gatherGenerators (mandg.subtype[sub]);
+            }
+        }
+
+        this.generateAnyCache = genList;
+        new MandGTypeManager().addToContext("generateAnyCache", this.generateAnyCache);
+        return _.sample(this.generateAnyCache);
     }
 
-    mutateParent(mandg) {
-        throw new Error("mutateParent not implemented");
+    mutateByParent(mandg) {
         var mutateList = [];
         while (mandg) {
-            mutateList.push(...mandg.mutators);
+            for (let mut of Object.keys(mandg.mutator)) {
+                mutateList.push(mandg.mutator[mut]);
+            }
             mandg = mandg.parent;
         }
         return _.sample(mutateList);
     }
 
-    createRecipe(thing, pathList, typeList) {
-        if (!Array.isArray(pathList)) {
-            throw new TypeError("createRecipe expected first arg to be pathList array, got:", pathList);
+    createRecipe() {
+        var mgr = new MandGTypeManager();
+        if (!this.initialized) {
+            throw new Error("Initialize cooker before calling createRecipe");
         }
 
-        if (!Array.isArray(typeList)) {
-            throw new TypeError("createRecipe expected second arg to be typeList array, got:", typeList);
-        }
-
-        var selectedPaths = this.selectPaths(pathList);
+        // console.log ("path list:", this.pathList);
+        var selectedPaths = this.selectPaths();
+        // console.log ("selected paths:", selectedPaths);
 
         var recipe = new Recipe();
         for (let path of selectedPaths) {
-            console.log("path");
             // extract the specific item from the path in the thing object
-            var item = _.get(thing, path);
+            var item = (path === "") ? this.thing : _.get(this.thing, path);
             // find the matching mandg for the thing
-            var mandg = this.resolveType(item);
+            var mandg = mgr.resolveType(item);
             // find the operation we want to perform
-            var op = this.selectOp(path, mandg);
+            var op = this.selectOp(mandg);
             recipe.addStep(path, op);
         }
         return recipe;
+    }
+}
+
+/**
+ * A single step in a Recipe
+ */
+class Step {
+    constructor(path, op) {
+        this.path = path;
+        this.op = op;
     }
 }
 
@@ -228,22 +268,48 @@ class Recipe {
         // this.length
         this.steps = new Set();
         // this.steps = [{path: "", operation: ""}]
+        this.recipeIterator = function*() {
+            for (let step of this.steps) {
+                yield step;
+            }
+        };
     }
 
+    /**
+     * Get the number of steps in the recipe
+     * @returns {Number} length of the recipe
+     */
     get length() {
         return this.steps.size;
     }
 
-    addStep(path, op) {
-        var step = {
-            path: path,
-            operation: op
-        };
+    /**
+     * Adds a step to this receipe
+     * @param pathOrStep {String|Step} - the path in `thing` that `op` will run on. Or if a Step has already been created (which constains a path and op) just use that instead.
+     * @param op {Function} - if pathOrStep is a path, this is the function that will be run against that path
+     */
+    addStep(pathOrStep, op) {
+        console.log(`adding step :: path: "${pathOrStep}" ; op: ${op.name}`);
+
+        var step;
+        if (pathOrStep instanceof Step) {
+            step = pathOrStep;
+        } else {
+            step = new Step(pathOrStep, op);
+        }
         this.steps.add(step);
     }
 
+    /**
+     * Implements the next() part of the iterator protocol
+     */
+    [Symbol.iterator]() {
+        return this.recipeIterator();
+    }
     // toString
 }
+
+
 
 module.exports = {
     Cooker: Cooker,
@@ -293,7 +359,7 @@ module.exports = {
 <span class="jsdoc-message">
 	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a>
 	
-		on 2016-12-08T19:35:08-08:00
+		on 2016-12-12T09:04:14+00:00
 	
 	using the <a href="https://github.com/docstrap/docstrap">DocStrap template</a>.
 </span>
