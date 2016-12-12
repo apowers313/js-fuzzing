@@ -40,14 +40,14 @@
 			<li class="dropdown">
 				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="Cooker.html">Cooker</a></li><li><a href="Generator.html">Generator</a></li><li><a href="MandG.html">MandG</a></li><li><a href="Mutator.html">Mutator</a></li><li><a href="Recipe.html">Recipe</a></li>
+					<li><a href="Cooker.html">Cooker</a></li><li><a href="Fuzz.html">Fuzz</a></li><li><a href="Generator.html">Generator</a></li><li><a href="MandG.html">MandG</a></li><li><a href="MorGBase.html">MorGBase</a></li><li><a href="Mutator.html">Mutator</a></li><li><a href="Recipe.html">Recipe</a></li><li><a href="Step.html">Step</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="global.html#Fuzz">Fuzz</a></li>
+					<li><a href="global.html#mandgTypeManagerSingleton">mandgTypeManagerSingleton</a></li>
 				</ul>
 			</li>
 			
@@ -85,16 +85,13 @@
     <article>
         <pre
             class="sunlight-highlight-javascript linenums">var _ = require("./lodash-wrapper.js");
-var traverse = require("traverse");
 var DepGraph = require("dependency-graph").DepGraph;
 
-/**
- * Mutator
- *
- * Generic Mutator class
- */
-class Mutator {
+/** @todo Mutator and Generator should be derived from a common class... too much cut-and-paste code right now */
+
+class MorGBase extends Function {
     constructor(name, fn, opts) {
+        super();
         // check args
         if (typeof name !== "string") {
             throw new TypeError("Mutator constructor expected 'name' to be string, got:" + name);
@@ -102,14 +99,28 @@ class Mutator {
         if (typeof fn !== "function") {
             throw new TypeError("Mutator constructor expected 'fn' to be function, got:" + typeof fn);
         }
-        if (fn.length !== 1) {
-            throw new TypeError("Mutator constructor expected 'fn' to have zero args, has:" + fn.length);
-        }
         opts = opts || {};
 
         this.tags = [];
-        this.name = name;
         this.fn = fn;
+
+        // can't assign to read-only 'name'...
+        // ...but we can sure redefine it!
+        Object.defineProperty(this, "name", {
+            enumerable: false,
+            configurable: true,
+            writable: false,
+            value: name
+        });
+
+        // if we are called, turn around and call fn
+        return new Proxy(this, {
+            apply: (target, thisArg, argumentsList) => {
+                var ctx = new MandGTypeManager().getContext();
+                // console.log ("inserting ctx:", ctx);
+                this.fn.apply(ctx, argumentsList);
+            }
+        });
     }
 
     fn(thing) {
@@ -118,37 +129,33 @@ class Mutator {
 }
 
 /**
- * Generator
- *
- * Generic Generator class
+ * Generic Mutator class
  */
-class Generator {
+class Mutator extends MorGBase {
     constructor(name, fn, opts) {
         // check args
-        if (typeof name !== "string") {
-            throw new TypeError("Generator constructor expected 'name' to be string, got:" + name);
+        if (fn.length !== 1) {
+            throw new TypeError("Mutator constructor expected 'fn' to have one arg, has: " + fn.length);
         }
-        if (typeof fn !== "function") {
-            throw new TypeError("Generator constructor expected 'fn' to be function, got:" + typeof fn);
-        }
-        if (fn.length !== 0) {
-            throw new TypeError("Generator constructor expected 'fn' to have zero args, has:" + fn.length);
-        }
-        opts = opts || {};
-
-        this.tags = [];
-        this.name = name;
-        this.fn = fn;
-    }
-
-    fn() {
-        throw new Error(`Generator in ${this.name} not implemented`);
+        super(name, fn, opts);
     }
 }
 
 /**
- * MandG
- *
+ * Generic Generator class
+ */
+class Generator extends MorGBase {
+    constructor(name, fn, opts) {
+        // check args
+        if (fn.length !== 0) {
+            throw new TypeError("Generator constructor expected 'fn' to have zero args, has: " + fn.length);
+        }
+        super(name, fn, opts);
+    }
+}
+
+
+/**
  * Mutators and Generators (MandG) container class
  * has all the logic around the specific mutators and generators for a specific type
  */
@@ -167,14 +174,14 @@ class MandG {
         var defaults = {};
         _.defaultsDeep(opts, defaults);
 
-        if (!Array.isArray (opts.depends) &amp;&amp; opts.depends !== undefined) {
-            throw new TypeError ("Expected dependencies to be array, got: " + typeof opts.depends);
+        if (!Array.isArray(opts.depends) &amp;&amp; opts.depends !== undefined) {
+            throw new TypeError("Expected dependencies to be array, got: " + typeof opts.depends);
         }
         if (typeof opts.parent !== "string" &amp;&amp; opts.parent !== undefined) {
-            throw new TypeError ("Expected parent to be string, got: " + typeof opts.parent);
+            throw new TypeError("Expected parent to be string, got: " + typeof opts.parent);
         }
 
-        this.depends = opts.depends || []
+        this.depends = opts.depends || [];
         this.parent = opts.parent || undefined;
 
         // configure options
@@ -183,11 +190,10 @@ class MandG {
         this.check = check;
 
         // for future use
-        // TODO: use Maps
+        // TODO: use Maps? using _.sample() later may not be map friendly
         this.mutator = {};
         this.generator = {};
         this.subtype = {};
-        this.utils = {};
     }
 
     check(thing) {
@@ -196,7 +202,10 @@ class MandG {
 
     addMutator(m) {
         // if mutator is a function, convert it to the mutator class
-        if (typeof m === "function") {
+        if (typeof m === "function" &amp;&amp; !(m instanceof Mutator)) {
+            if (!m.name) {
+                throw new TypeError("attempting to add Mutator from function without a name");
+            }
             m = new Mutator(m.name, m);
         }
 
@@ -212,7 +221,10 @@ class MandG {
 
     addGenerator(g) {
         // if generator is a function, convert it to the generator class
-        if (typeof g === "function") {
+        if (typeof g === "function" &amp;&amp; !(g instanceof Generator)) {
+            if (!g.name) {
+                throw new TypeError("attempting to add Generator from function without a name");
+            }
             g = new Generator(g.name, g);
         }
 
@@ -224,6 +236,24 @@ class MandG {
         // TODO: check to make sure generator doesn't already exist?
         var name = g.name;
         this.generator[name] = g;
+    }
+
+    /**
+     * Reuses a generator that has already been implemented by another module
+     */
+    borrowGenerator(module, name) {
+        // add module as dependency
+        // add string as "function" in module list
+        // proxy should resolve string to function later...
+    }
+
+    /**
+     * Reuses a mutator that has already been implemented by another module
+     */
+    borrowMutator(module, name) {
+        // add module as dependency
+        // add string as "function" in module list
+        // proxy should resolve string to function later...
     }
 
     addSubtype(s) {
@@ -245,13 +275,17 @@ class MandG {
     }
 
     /**
-     * filter
-     *
      * filters mutators and generators based on a specific tag
+     * @todo not implemented
      */
-    filter(tag) {}
+    filter(tag) {
+        throw new Error ("MandG filter not implemented");
+    }
 }
 
+/**
+ * A singleton for managing all MandG types
+ */
 var mandgTypeManagerSingleton;
 class MandGTypeManager {
     constructor(opts) {
@@ -262,14 +296,19 @@ class MandGTypeManager {
         // set default options
         opts = opts || {};
         var defaults = {
-            mandgModuleList: ["array", "boolean", "date", "function", /*"null",*/ "number", "object", "regexp", "string", "undef"]
+            mandgModuleList: ["array", "boolean", "date", "function", "null", "number", "object", "regexp", "string", "undef"]
         };
         _.defaultsDeep(opts, defaults);
 
-        // a heirarchy of types
-        this.typeIndex = {};
+        // the context for all MandG function calls
+        this.callContext = {};
         // a flat list of all types
-        this.types = {};
+        this.typeIndex = {};
+        // root of the heirarchy of types
+        this.root = new MandG("everything", function() {
+            return true;
+        });
+        this.typeIndex.everything = this.root;
 
         // load all the built-in types
         if (opts.mandgReplacementModules) {
@@ -283,10 +322,12 @@ class MandGTypeManager {
         for (let idx in this.mandgModuleList) {
             mandg = null;
 
+            // try to load a module that is available in `node_modules` or similar
             try {
                 mandg = require(this.mandgModuleList[idx]);
             } catch (err) {}
 
+            // try to load the module out of our local types directory
             if (!mandg) try {
                 mandg = require(`./types/${this.mandgModuleList[idx]}.js`);
             } catch (err) {}
@@ -306,6 +347,11 @@ class MandGTypeManager {
         var list = dependencyGraph.overallOrder();
         for (let node of list) {
             mandg = dependencyGraph.getNodeData(node);
+
+            if (typeof mandg.parent !== "string" &amp;&amp; mandg.parent !== undefined) {
+                throw new TypeError (`Expected parent to be string when building dependencies for ${mandg.type}. Got: ${typeof mandg.parent}`);
+            }
+
             // try to add parent as a dependency
             if (mandg.parent) {
                 try {
@@ -314,6 +360,7 @@ class MandGTypeManager {
                     throw new TypeError(`parent '${mandg.parent}' not found when loading '${mandg.type}'`);
                 }
             }
+
             // try to add all depends as dependencies
             for (let depName of mandg.depends) {
                 try {
@@ -328,6 +375,8 @@ class MandGTypeManager {
             mandg = dependencyGraph.getNodeData(node);
             this.registerType(mandg);
         }
+
+        this.addToContext ("utils", this.typeIndex);
     }
 
     /**
@@ -335,38 +384,38 @@ class MandGTypeManager {
      * Mostly useful for testing, but maybe other things too.
      */
     forceReset() {
+        // console.log ("RESETTING MANDGTYPEMANAGER");
         mandgTypeManagerSingleton = null;
     }
 
     /**
      * registers a new mandg type
+     * @param newType {MandG} - the new MandG type to register
      */
     registerType(newType) {
         if (!(newType instanceof MandG)) {
             throw new TypeError("expected 'newType' to be of type MandG, was: " + typeof mandg);
         }
         var name = newType.type;
-        var parent = newType.parent;
+        var parent = newType.parent || "everything";
 
         if (this.typeIndex[name] !== undefined) {
             throw new TypeError("can't register type twice: " + name);
         }
 
         this.typeIndex[name] = newType;
-        if (parent === undefined) {
-            this.types[name] = newType;
-        } else {
-            var parentType = this.typeIndex[parent];
-            if (parentType === undefined) {
-                throw new TypeError(`registerType couldn't find parent '${parent}' when adding type ${newType.type}`);
-            }
-            parentType.addSubtype(newType);
-            newType.parent = parentType;
+        var parentType = this.typeIndex[parent];
+        if (parentType === undefined) {
+            throw new TypeError(`registerType couldn't find parent '${parent}' when adding type ${newType.type}`);
         }
+        parentType.addSubtype(newType);
+        newType.parent = parentType;
+        // console.log (`Added ${newType.type} to ${parentType.type}`)
     }
 
     /**
      * Turns a thing (string, object, null, etc.) into a mandg type
+     * @param thing {any} - the thing to find the type of, using the registered types
      */
     resolveType(thing) {
         // recursively see if some 'type' in 'typeList' returns true when checking 'obj'
@@ -375,6 +424,8 @@ class MandGTypeManager {
         function findType(typeList, obj) {
             var mandgList = _.map(typeList, function(m, t) {
                 if (m === undefined || t === undefined) return;
+                // console.log ("typeof m:", typeof m);
+                // console.log ("m:", m);
                 if (m.check(obj)) {
                     return findType(m.subtype, obj) || m;
                 }
@@ -394,9 +445,32 @@ class MandGTypeManager {
             return mandg;
         }
 
-        return findType(this.types, thing);
+        return findType(this.root.subtype, thing);
     }
 
+    /**
+     * Returns a context that every function should be called with
+     */
+    getContext() {
+        return this.callContext;
+    }
+
+    /**
+     * Adds an item to the calling context for all MandG function calls
+     * @param prop {string} - the new property in the context
+     * @param val {any} - the value to assign to the property in the context
+     */
+    addToContext(prop, val) {
+        Object.defineProperty(this.callContext, prop, {
+            writeable: false,
+            configurable: true,
+            enumerable: true,
+            value: val
+        });
+
+        // this.callContext[prop] = val;
+        // TODO: configure as read only?
+    }
 }
 
 module.exports = {
@@ -450,7 +524,7 @@ module.exports = {
 <span class="jsdoc-message">
 	Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.4.3</a>
 	
-		on 2016-12-08T19:37:44-08:00
+		on 2016-12-12T00:22:05-08:00
 	
 	using the <a href="https://github.com/docstrap/docstrap">DocStrap template</a>.
 </span>
