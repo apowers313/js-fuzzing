@@ -58,11 +58,6 @@ function testGenerators(name) {
 }
 
 describe("type tests", function() {
-    it("test object", function() {
-        var mandg = require(`../lib/types/object.js`);
-        mandg.mutator.objAddKeys({foo: "bar"});
-        // console.log ("mandg.mutator.objAddKeys:", mandg.mutator.objAddKeys);
-    });
     testModule("array", ["a", "b", "c", 1, 2, 3]);
     testModule("boolean", true);
     testModule("date", new Date());
